@@ -1,0 +1,78 @@
+---
+title: "Test Strava Vis"
+author: "Florian Tanner"
+date: "`r format(Sys.time())`"
+output: rmdformats::downcute
+  
+---
+
+# Notes
+
+# Setup
+
+Load Packages, set up markdown
+
+```{r}
+rm(list = ls())
+`%nin%` = Negate(`%in%`) # Assign function for filtering
+knitr::opts_chunk$set(eval = TRUE, echo = TRUE, message=TRUE, warning = TRUE, fig.width = 8)
+options(scipen=999)
+
+library(janitor)
+library(tidyverse)
+library(ggplot2); theme_set(theme_bw())
+```
+
+# Load data
+
+```{r}
+activities <- read_csv("my_data/activities.csv") %>% 
+  clean_names()
+```
+
+```{r}
+weekly_summaries <- activities %>% 
+  mutate(activity_datetime = as_datetime(activity_date, format = "%b %e, %Y, %I:%M:%S %p"),
+         activity_week = week(activity_datetime),
+         activity_year = year(activity_datetime)) %>% 
+  group_by(activity_type, activity_week, activity_year) %>% 
+  summarise(sum_elapsed_time = sum(elapsed_time_6),
+            sum_moving_time = sum(moving_time),
+            sum_elevation = sum(elevation_gain),
+            sum_distance = if_else(n() > 0, sum(distance_7), 0)) %>% 
+   mutate(mean_run_speed_elapsed = (sum_elapsed_time/60)/sum_distance,
+         mean_run_speed_moving = (sum_moving_time/60)/sum_distance,
+         mock_date = ymd( "2014-01-01" ) + lubridate::weeks( activity_week - 1 ))
+```
+
+```{r}
+weekly_summaries %>% 
+  filter(activity_type %in% c("Ride", "Run", "Walk")) %>% 
+  ggplot(aes(x = mock_date, y = sum_distance)) +
+  geom_point() +
+  scale_x_date(date_breaks = "3 months", date_labels = "%b") +
+  facet_grid(activity_type~activity_year, scales = "free_y")
+```
+
+```{r, fig.height=8}
+weekly_summaries %>% 
+  filter(activity_type == "Run") %>% 
+  ggplot(aes(x = mock_date, y = sum_distance, color = sum_elevation)) +
+  geom_point(size =2) +
+  facet_wrap(~activity_year, nrow =3) +
+  scale_color_viridis_c(option = "C", direction = -1) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  labs(y = "Weekly distance [km]") +
+  theme(legend.position = "bottom")
+```
+
+
+
+
+
+# Session Info 
+
+```{r}
+sessionInfo()
+```
+
